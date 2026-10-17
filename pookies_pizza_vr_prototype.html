@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pookie's Pizza VR — Prototype 0.1</title>
+<style>
+:root{--red:#e84a35;--yellow:#ffd45a;--cream:#fff4dc;--ink:#422a20}
+*{box-sizing:border-box}body{margin:0;background:#1f2937;color:var(--cream);font-family:system-ui,Arial,sans-serif;overflow:hidden}
+#game{position:fixed;inset:0}canvas{display:block}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;flex-wrap:wrap}
+.pill{background:#241812df;border:2px solid #ffffff30;border-radius:14px;padding:9px 12px;font-weight:800;box-shadow:0 4px 0 #0003}
+#message{position:fixed;top:76px;left:50%;transform:translateX(-50%);background:#fff4dc;color:#422a20;border:3px solid #e84a35;border-radius:16px;padding:10px 16px;font-weight:900;text-align:center;max-width:90vw}
+#panel{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;width:96%;pointer-events:auto}
+button{font:800 15px system-ui;border:0;border-radius:13px;padding:12px 15px;background:var(--yellow);color:var(--ink);box-shadow:0 4px 0 #9c6920;cursor:pointer;touch-action:manipulation}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #9c6920}
+button.red{background:var(--red);color:white;box-shadow:0 4px 0 #8d241b}
+button.green{background:#7fe0a0;box-shadow:0 4px 0 #267447}
+#help{position:fixed;left:12px;bottom:90px;background:#241812d9;border-radius:12px;padding:10px 12px;font-size:12px;max-width:290px;line-height:1.45}
+#xr{position:fixed;right:12px;top:70px}
+@media(max-width:600px){.pill{font-size:12px;padding:7px 9px}button{font-size:13px;padding:11px 12px}#help{bottom:126px;max-width:220px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud"><div class="pill">🍕 POOKIE'S PIZZA</div><div class="pill">Cash: $<span id="cash">0</span> · Orders: <span id="orders">0</span></div></div>
+<div id="message">Welcome to Pookie's! Serve a slice… and keep your cool.</div>
+<button id="xr" class="green" hidden>🥽 Enter VR</button>
+<div id="help">PHONE TEST: Tap “Serve pizza” to earn tips. Tap “Toilet ammo” then “THROW POOP” to prank the customer. In VR, aim a controller and press its trigger to throw.</div>
+<div id="panel"><button id="serve">🍕 Serve pizza</button><button id="ammo">🚽 Toilet ammo</button><button id="throw" class="red">💩 THROW POOP</button><button id="reset">↻ Reset shift</button></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js';
+import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/webxr/ARButton.js';
+const root=document.querySelector('#game'), message=document.querySelector('#message');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bdcf4); scene.fog=new THREE.Fog(0x9bdcf4,13,32);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,100); camera.position.set(0,1.65,6);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight); renderer.xr.enabled=true; renderer.shadowMap.enabled=true; root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xfff2d0,0x526077,2));
+const sun=new THREE.DirectionalLight(0xffffff,2.4); sun.position.set(-3,8,5); sun.castShadow=true; scene.add(sun);
+const mat=(c,r=.8)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const materials={cream:mat(0xffedc9),red:mat(0xe84a35),yellow:mat(0xffd45a),wood:mat(0x9b5831),dark:mat(0x38251f),green:mat(0x5dbd78),pink:mat(0xffa4ad),white:mat(0xffffff),cheese:mat(0xffcf48),pepperoni:mat(0xc83c2d),blue:mat(0x3976c9),brown:mat(0x8b512c),poop:mat(0x6b3c21)};
+function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o}
+function sphere(r,m,x,y,z){const o=new THREE.Mesh(new THREE.SphereGeometry(r,20,16),m);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o}
+function cylinder(rt,rb,h,m,x,y,z,n=24){const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,n),m);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o}
+// Restaurant floor, walls, checkered tiles
+box(18,.2,18,materials.cream,0,-.12,0);
+for(let x=-8;x<9;x++)for(let z=-8;z<9;z++)if((x+z)%2===0)box(.95,.015,.95,mat(0xf7d5a1),x,-.01,z);
+box(18,5,.25,materials.red,0,2.4,-5);box(.25,5,18,materials.cream,-7,2.4,0);box(.25,5,18,materials.cream,7,2.4,0);
+box(4,.18,1.3,materials.wood,0,1.05,-1.1);box(4,.12,1.3,materials.yellow,0,1.2,-1.1);
+// Pizza oven
+box(2.1,1.8,1.2,materials.red,-4,1,-3.7);box(1.4,.85,.1,materials.dark,-4,1,-3.05);box(1.5,.08,.12,materials.yellow,-4,1.35,-2.98);
+// menu sign
+box(3,.9,.12,materials.dark,0,3.25,-4.75);
+function textSprite(text,x,y,z,color='#fff4dc'){const c=document.createElement('canvas');c.width=512;c.height=128;const ctx=c.getContext('2d');ctx.fillStyle=color;ctx.font='bold 62px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,256,64);const tex=new THREE.CanvasTexture(c);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true}));s.position.set(x,y,z);s.scale.set(2.8,.7,1);scene.add(s);return s}
+textSprite("POOKIE'S PIZZA",0,3.25,-4.65,'#ffd45a');
+// counter pizza on plate
+cylinder(.55,.55,.06,materials.white,-.9,1.32,-1.1);cylinder(.45,.45,.09,materials.cheese,-.9,1.39,-1.1);cylinder(.12,.12,.025,materials.pepperoni,-.9,1.45,-.1+ -1.1,12);
+for(const [x,z] of [[-.65,-1.28],[-1.05,-1.0],[-.9,-.82],[-1.15,-1.2]])cylinder(.07,.07,.025,materials.pepperoni,x,1.45,z,12);
+// customer body and silly face
+const customer=new THREE.Group();scene.add(customer);customer.position.set(0,0,-2.8);
+const body=new THREE.Mesh(new THREE.CylinderGeometry(.38,.48,1.05,20),materials.blue);body.position.y=.72;customer.add(body);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.42,24,20),materials.pink);head.position.y=1.55;customer.add(head);
+const hair=new THREE.Mesh(new THREE.SphereGeometry(.44,20,12,0,Math.PI*2,0,Math.PI*.55),materials.brown);hair.position.y=1.7;customer.add(hair);
+for(const x of [-.15,.15]){const eye=new THREE.Mesh(new THREE.SphereGeometry(.055,12,12),materials.dark);eye.position.set(x,1.59,.36);customer.add(eye)}
+const mouth=new THREE.Mesh(new THREE.BoxGeometry(.22,.045,.04),materials.dark);mouth.position.set(0,1.4,.39);customer.add(mouth);
+box(.9,.12,.8,materials.wood,0,.55,-2.0);box(1,.12,.9,materials.red,0,.64,-2.0);
+// toilet corner
+box(1.4,1.6,.15,materials.green,5,.8,-3.8);cylinder(.32,.38,.48,materials.white,5,.25,-3.2);cylinder(.36,.36,.09,materials.white,5,.51,-3.2);box(.65,.85,.18,materials.white,5,.75,-3.55);cylinder(.18,.18,.08,materials.blue,5,.53,-3.2);
+textSprite('TOILET AMMO',5,1.65,-3.5);
+// pizza projectile and poop
+let selectedAmmo=false;let cash=0,orders=0;const projectiles=[];
+function projectile(kind){const g=new THREE.Group();scene.add(g);if(kind==='pizza'){cylinder(.25,.25,.07,materials.cheese,0,0,0);for(const [x,z] of [[-.1,-.05],[.1,.07],[0,.13]])cylinder(.045,.045,.02,materials.pepperoni,x,.05,z,12)}else{sphere(.16,materials.poop,0,0,0);sphere(.12,materials.poop,0,.13,0);sphere(.08,materials.poop,.07,.23,0)}return g}
+function say(t){message.textContent=t}
+function serve(){cash+=5;orders++;document.querySelector('#cash').textContent=cash;document.querySelector('#orders').textContent=orders;say(['Order up! +$5 tip!','Hot pizza served! +$5','Pookie says: beautiful service! +$5'][orders%3]);customer.rotation.y=(Math.random()-.5)*.2}
+function loadAmmo(){selectedAmmo=true;say('Toilet ammo loaded. Aim and throw! 💩')}
+function throwThing(){const kind=selectedAmmo?'poop':'pizza';selectedAmmo=false;const g=projectile(kind);const dir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);g.position.copy(camera.position).add(dir.clone().multiplyScalar(.8));projectiles.push({g,vel:dir.multiplyScalar(.19).add(new THREE.Vector3(0,.07,0)),kind,life:0});say(kind==='poop'?'PLOP! Incoming toilet surprise!':'Pizza launched!');}
+document.querySelector('#serve').onclick=serve;document.querySelector('#ammo').onclick=loadAmmo;document.querySelector('#throw').onclick=throwThing;
+document.querySelector('#reset').onclick=()=>{cash=0;orders=0;selectedAmmo=false;document.querySelector('#cash').textContent=0;document.querySelector('#orders').textContent=0;for(const p of projectiles)scene.remove(p.g);projectiles.length=0;say('New shift started. Welcome to Pookie’s!')};
+const xrButton=document.querySelector('#xr');
+if(navigator.xr){navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(ok){xrButton.hidden=false;xrButton.onclick=async()=>{try{const session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});renderer.xr.setSession(session);say('VR shift started! Use the buttons to serve and throw.')}catch(e){say('Could not start VR. Try opening this page over HTTPS in Quest Browser.')}}}}).catch(()=>{})}
+const controllers=[];for(let i=0;i<2;i++){const c=renderer.xr.getController(i);c.addEventListener('select',()=>throwThing());scene.add(c);controllers.push(c);const ray=new THREE.Mesh(new THREE.CylinderGeometry(.006,.006,2,8),mat(0xffffff));ray.rotation.x=Math.PI/2;ray.position.z=-1; c.add(ray)}
+function animate(){for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.g.position.add(p.vel);p.vel.y-=.004;p.g.rotation.x+=.07;p.g.rotation.z+=.05;p.life++;if(p.g.position.y<.12||p.life>180){if(p.kind==='poop'&&p.g.position.distanceTo(customer.position.clone().add(new THREE.Vector3(0,1,0)))<2){say('CUSTOMER BONKED! 💩');cash=Math.max(0,cash-1);document.querySelector('#cash').textContent=cash}else if(p.kind==='pizza'){say('Pizza landed somewhere. Five-second rule?')}scene.remove(p.g);projectiles.splice(i,1)}}renderer.render(scene,camera)}
+renderer.setAnimationLoop(animate);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body>
+</html>
