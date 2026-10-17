@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pookie's Pizza VR</title>
+<style>
+:root{--cream:#fff1cf;--red:#d83a32;--gold:#ffca58;--ink:#321c20}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#160f1a;color:var(--cream);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#panel{position:fixed;left:12px;top:12px;z-index:5;max-width:min(340px,calc(100vw - 24px));background:#24141ee8;border:1px solid #ffca5870;border-radius:16px;padding:12px 14px;box-shadow:0 8px 28px #0007;backdrop-filter:blur(8px)}
+#brand{font-weight:1000;letter-spacing:.06em;color:#ffca58;font-size:18px}#stats{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;margin-top:7px}
+#message{font-size:13px;line-height:1.35;margin-top:8px;color:#ffe9bf}
+#controls{position:fixed;right:12px;top:12px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:55vw}
+button{font:700 13px system-ui;border:1px solid #fff4;border-radius:12px;padding:10px 12px;background:#d83a32;color:white;box-shadow:0 4px 12px #0005;cursor:pointer}
+button.secondary{background:#281c29;color:#fff1cf}
+#shopPanel{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;padding:16px;background:#100912d9}#shopCard{width:min(560px,100%);max-height:85vh;overflow:auto;background:#281923;border:2px solid #ffca58;border-radius:22px;padding:18px;box-shadow:0 18px 60px #000a}#shopCard h2{margin:0 0 6px;color:#ffca58}#shopItems{display:grid;gap:10px;margin:14px 0}.upgrade{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#3a2531;border:1px solid #ffffff24;border-radius:14px;padding:12px}.upgrade p{margin:4px 0 0;font-size:12px;line-height:1.35;color:#ffe9c8}.upgrade button{flex-shrink:0}#bottom{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:5;width:min(580px,calc(100vw - 24px));display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+#hint{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);text-align:center;width:90%;font-size:12px;color:#fff0cf;text-shadow:0 2px 5px #000;z-index:4;pointer-events:none}
+#toast{position:fixed;left:50%;top:28%;transform:translate(-50%,-50%);z-index:8;background:#24141eef;border:2px solid #ffca58;border-radius:18px;padding:16px 22px;font-weight:900;font-size:20px;text-align:center;display:none;max-width:90vw}
+#overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(#170d15aa,#170d15ee)}
+#card{max-width:520px;width:100%;border:1px solid #ffca5880;background:#281923;border-radius:24px;padding:24px;box-shadow:0 20px 70px #000a}
+#card h1{margin:0 0 8px;font-size:clamp(28px,6vw,42px);color:#ffca58;line-height:1}
+#card p{line-height:1.5;color:#ffe9c8}
+#card .small{font-size:12px;opacity:.8}
+#start{font-size:16px;padding:14px 18px;width:100%;margin-top:8px}
+@media(max-width:560px){#panel{max-width:calc(100vw - 24px)}#controls{top:auto;bottom:72px;right:10px}#hint{bottom:124px}#bottom{bottom:10px}button{padding:9px 10px}}
+</style>
+</head>
+<body>
+<div id="panel">
+  <div id="brand">🍕 POOKIE'S PIZZA VR</div>
+  <div id="stats"><span id="day">DAY 1</span><span id="served">CUSTOMERS 0/15</span><span id="lives">❤️❤️❤️❤️❤️</span><span id="money">$0</span></div>
+  <div id="message">Welcome to your first shift! Head to the prep counter.</div>
+</div>
+<div id="controls">
+  <button class="secondary" id="vr">🥽 Enter VR</button>
+  <button class="secondary" id="shop">🛒 Upgrades</button>\n  <button class="secondary" id="reset">↻ Restart day</button>
+</div>
+<div id="hint">Desktop: WASD move · Q/R turn · E interact. In VR: left stick move · right stick turn/look · trigger interact.</div>
+<div id="bottom">
+  <button id="interact">Interact / Serve</button>
+  <button class="secondary" id="next">Next pizza step</button>
+</div>
+<div id="toast"></div>
+<div id="overlay"><div id="card">
+<h1>POOKIE'S<br>PIZZA VR</h1>
+<p>Run a colorful pizza shop! Sell pizzas to earn money, then buy premium ingredients, a topping blaster, and a turbo oven in the Upgrade Shop.</p>
+<p><b>Controls:</b> In VR, the left thumbstick moves and the right thumbstick turns. Point a controller and squeeze the trigger near a station to interact. On phone, use the buttons at the bottom.</p>
+<p class="small">This is an early browser prototype. The 3D room and basic controller locomotion are included; detailed hand models, realistic pizza grabbing, and the house/car journey still need later development.</p>
+<button id="start">Start shift</button>
+</div></div>
+<div id="toast"></div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
+
+const $=id=>document.getElementById(id);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x251622); scene.fog=new THREE.Fog(0x251622,18,42);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,100);
+camera.position.set(0,1.65,6);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.xr.enabled=true;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+const hemi=new THREE.HemisphereLight(0xffe5cb,0x39263d,2.1);scene.add(hemi);
+const key=new THREE.DirectionalLight(0xffd6a1,3.0);key.position.set(-4,8,5);key.castShadow=true;key.shadow.mapSize.set(1024,1024);scene.add(key);
+const fill=new THREE.PointLight(0xff5c48,18,14);fill.position.set(0,3,-4);scene.add(fill);
+const mats={floor:new THREE.MeshStandardMaterial({color:0xe8d5bc,roughness:.86}),red:new THREE.MeshStandardMaterial({color:0xb82e38,roughness:.75}),cream:new THREE.MeshStandardMaterial({color:0xffe8bd,roughness:.8}),wood:new THREE.MeshStandardMaterial({color:0x7b432b,roughness:.7}),darkwood:new THREE.MeshStandardMaterial({color:0x40242a,roughness:.75}),gold:new THREE.MeshStandardMaterial({color:0xffc64c,emissive:0x5c2600,emissiveIntensity:.45}),metal:new THREE.MeshStandardMaterial({color:0x8b9aa0,metalness:.65,roughness:.32}),black:new THREE.MeshStandardMaterial({color:0x20202a,roughness:.45}),green:new THREE.MeshStandardMaterial({color:0x4f9957,roughness:.8}),tomato:new THREE.MeshStandardMaterial({color:0xe43a2f,roughness:.5}),cheese:new THREE.MeshStandardMaterial({color:0xffd45c,roughness:.65}),white:new THREE.MeshStandardMaterial({color:0xfff6e4,roughness:.6}),blue:new THREE.MeshStandardMaterial({color:0x58a9cf,roughness:.6})};
+function box(name,x,y,z,w,h,d,mat, opts={}){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.name=name;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);if(opts.interactive)interactives.push(m);return m}
+function cylinder(name,x,y,z,r1,r2,h,mat,segments=24){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),mat);m.name=name;m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m}
+function sphere(name,x,y,z,r,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r,20,14),mat);m.name=name;m.position.set(x,y,z);m.castShadow=true;scene.add(m);return m}
+const interactives=[];
+/* Room */
+box('floor',0,-.12,-1,18,.24,24,mats.floor);
+box('back wall',0,2,-12,18,4,.3,mats.red);box('left wall',-9,2,-1,.3,4,22,mats.red);box('right wall',9,2,-1,.3,4,22,mats.red);
+box('front left wall',-6,2,10,.3,4,4,mats.red);box('front right wall',6,2,10,.3,4,4,mats.red);
+box('ceiling',0,4.2,-1,18,.2,24,mats.darkwood);
+for(let z=-10;z<=8;z+=2){for(let x=-8;x<=8;x+=2){box('tile',x,.008,z,1.92,.012,1.92,((x+z)/2)%2===0?mats.cream:mats.floor)}}
+/* Back-wall sign */
+box('sign backing',0,3.15,-11.78,5.8,1.35,.15,mats.darkwood);
+box('sign inner',0,3.15,-11.67,5.45,1.05,.05,mats.gold);
+function makeText(text,x,y,z,size,color=0xffffff){const c=document.createElement('canvas');c.width=1024;c.height=256;const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);ctx.font='1000 100px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#'+color.toString(16).padStart(6,'0');ctx.shadowColor='#fff1b0';ctx.shadowBlur=10;ctx.fillText(text,512,128);const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const m=new THREE.Mesh(new THREE.PlaneGeometry(size,size*.25),new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide}));m.position.set(x,y,z);scene.add(m);return m}
+makeText("POOKIE'S PIZZA",0,3.2,-11.57,5.2,0x8d1824);
+/* Oven and prep counters */
+box('oven base',-5,1.05,-8,3.2,1.8,1.5,mats.darkwood,{interactive:true});interactives.push(scene.children[scene.children.length-1]);box('oven face',-5,1.55,-7.2,2.3,.85,.12,mats.black);
+box('oven mouth',-5,1.48,-7.12,1.6,.5,.06,mats.gold);
+const ovenGlow=new THREE.PointLight(0xff4b13,5,4);ovenGlow.position.set(-5,1.45,-6.7);scene.add(ovenGlow);
+cylinder('oven chimney',-5,2.45,-8, .5,.7,.8,mats.metal);
+box('prep counter',-1.6,1,-5.2,4.6,1.6,1.3,mats.wood,{interactive:true});interactives.push(scene.children[scene.children.length-1]);box('prep top',-1.6,1.84,-5.2,4.8,.14,1.5,mats.white);interactives.push(scene.children[scene.children.length-1]);
+box('front counter',0,1,-1.8,7.8,1.5,1.1,mats.wood,{interactive:true});interactives.push(scene.children[scene.children.length-1]);box('counter top',0,1.8,-1.8,8,.16,1.25,mats.darkwood);interactives.push(scene.children[scene.children.length-1]);
+/* ingredients and dough */
+cylinder('pizza dough',-2.4,1.96,-5.2,.53,.53,.07,mats.cheese,40);
+cylinder('tomato sauce bowl',-1.25,2.04,-5.2,.34,.34,.13,mats.metal);cylinder('sauce',-1.25,2.115,-5.2,.28,.28,.018,mats.tomato,32);
+cylinder('cheese bowl',-.1,2.04,-5.2,.34,.34,.13,mats.metal);for(let i=0;i<18;i++){let a=i*2.4; sphere('cheese',-.1+Math.cos(a)*.22,2.16+Math.random()*.02,-5.2+Math.sin(a)*.22,.035,mats.cheese)}
+for(let i=0;i<6;i++){cylinder('pepperoni',.95+(i%3)*.25,1.97,-5.38+Math.floor(i/3)*.3,.08,.08,.025,mats.tomato,16)}
+/* stools and tables */
+for(let z=-8;z<=4;z+=4){for(let x of [-7,7]){cylinder('table leg',x,.65,z,.09,.12,1.2,mats.darkwood);cylinder('table',x,1.28,z,.85,.85,.12,mats.wood,32);for(let dx of [-1,1]){cylinder('stool leg',x+dx*.75,.35,z+1.1,.07,.08,.7,mats.darkwood);cylinder('stool seat',x+dx*.75,.73,z+1.1,.35,.35,.1,mats.red,24)}}}
+/* windows */
+for(let x of [-7.2,7.2]){box('window frame',x,2.5,3.8,1.4,1.7,.12,mats.darkwood);box('window glass',x,2.5,3.72,1.18,1.48,.04,mats.blue);box('window cross',x,2.5,3.65,.07,1.48,.06,mats.white);box('window cross',x,2.5,3.65,1.18,.07,.06,mats.white)}
+/* Customers: cute low-poly people behind dining tables */
+function customer(x,z,shirt,skin){const body=cylinder('customer body',x,1.1,z,.32,.38,.8,shirt);const head=sphere('customer head',x,1.72,z,.28,skin);sphere('customer hair',x,1.9,z-.03,.25,mats.darkwood);sphere('customer eye',x-.09,1.74,z-.245,.035,mats.black);sphere('customer eye',x+.09,1.74,z-.245,.035,mats.black);return {body,head,x,z}}
+const customers=[customer(-7, -6,mats.green, mats.cheese),customer(7,-2,mats.blue,mats.cream),customer(-7,2,mats.tomato,mats.cream)];
+/* ceiling lights */
+for(let x of [-6,0,6]){box('light fixture',x,3.95,-2,.9,.1,1.5,mats.gold);const l=new THREE.PointLight(0xffdca0,9,9);l.position.set(x,3.5,-2);scene.add(l)}
+/* Decorative pizza logo discs */
+for(let x of [-8.7,8.7]){cylinder('wall pizza logo',x,3,-5,.55,.55,.12,mats.gold,32);cylinder('pizza logo sauce',x,3,-4.92,.42,.42,.03,mats.tomato,32);for(let i=0;i<5;i++)sphere('logo topping',x+Math.cos(i*1.26)*.25,3+Math.sin(i*1.26)*.25,-4.87,.06,mats.cheese)}
+/* Player rig: XR camera is attached to dolly so stick movement translates the user */
+const rig=new THREE.Group();scene.add(rig);rig.position.set(0,0,6);rig.add(camera);camera.position.set(0,1.65,0);
+const controller0=renderer.xr.getController(0),controller1=renderer.xr.getController(1);rig.add(controller0);rig.add(controller1);
+function controllerRay(c){const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-1)]);const line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffd45c}));line.scale.z=5;c.add(line);return line}
+controllerRay(controller0);controllerRay(controller1);
+const grip0=renderer.xr.getControllerGrip(0),grip1=renderer.xr.getControllerGrip(1);rig.add(grip0,grip1);
+const raycaster=new THREE.Raycaster();const tempMatrix=new THREE.Matrix4();let lastToast=0;
+function toast(t){$('toast').textContent=t;$('toast').style.display='block';clearTimeout(lastToast);lastToast=setTimeout(()=>$('toast').style.display='none',1800)}
+/* Gameplay */
+let day=1,served=0,lives=5,money=0,step=0,started=false,failed=false;
+const upgrades={quality:0,tool:0,oven:0};
+const upgradeInfo={
+ quality:{name:'🥬 Premium Ingredients',desc:'Better cheese, sauce, and toppings. Each correct pizza pays more.',costs:[100,220,400],max:3},
+ tool:{name:'🍅 Topping Blaster',desc:'A silly, clean cartoon topping launcher instead of the old poop gag. Adds a bonus to each correct order.',costs:[150,300],max:2},
+ oven:{name:'🔥 Turbo Pizza Oven',desc:'Bake faster with a shiny upgraded oven. Earn an extra bonus for each completed pizza.',costs:[180,350],max:2}
+};
+function saveProgress(){try{localStorage.setItem('pookiesPizzaSave',JSON.stringify({day, money, upgrades}))}catch(e){}}
+function loadProgress(){try{const v=JSON.parse(localStorage.getItem('pookiesPizzaSave')||'null');if(v){day=Math.max(1,v.day||1);money=Math.max(0,v.money||0);if(v.upgrades)Object.assign(upgrades,v.upgrades)}}catch(e){}}
+function renderShop(){
+ $('shopMoney').textContent='Your money: $'+money;
+ $('shopItems').innerHTML='';
+ for(const [key,u] of Object.entries(upgradeInfo)){
+  const level=upgrades[key]||0, max= u.max, cost=u.costs[level];
+  const item=document.createElement('div');item.className='upgrade';
+  const info=document.createElement('div');
+  info.innerHTML='<b>'+u.name+' · Level '+level+'/'+max+'</b><p>'+u.desc+'</p>';
+  const b=document.createElement('button');b.textContent=level>=max?'MAX LEVEL':'Buy $'+cost;b.disabled=level>=max||money<cost;
+  b.onclick=()=>{if(level>=max||money<cost)return;money-=cost;upgrades[key]++;saveProgress();renderShop();updateHud();toast(u.name+' upgraded!')};
+  item.append(info,b);$('shopItems').appendChild(item);
+ }
+}
+function openShop(){renderShop();$('shopPanel').style.display='flex'}
+$('shop').onclick=openShop;$('closeShop').onclick=()=>$('shopPanel').style.display='none';
+const steps=['Take dough from the prep counter','Add tomato sauce','Add cheese and toppings','Bake the pizza in the oven','Serve the customer at the front counter'];
+function updateHud(){ $('day').textContent='DAY '+day;$('served').textContent='CUSTOMERS '+served+'/15';$('lives').textContent='❤️'.repeat(lives)+'🖤'.repeat(5-lives);$('money').textContent='$'+money;$('message').textContent=failed?'Shift failed. Your money was cut in half. Restart the day.':steps[step]+' · Correct orders earn $20.'}
+function interact(){if(!started)return;if(failed){restartDay();return}
+ step++;
+ if(step>=steps.length){step=0;served++;money+=20;toast('Order correct! +$20');if(served>=15){toast('Shift complete! Going home…');day++;served=0;step=0;setTimeout(()=>toast('Welcome to Day '+day+'!'),1500)}}
+ updateHud();
+}
+function restartDay(){money=Math.floor(money/2);served=0;lives=5;step=0;failed=false;saveProgress();updateHud();toast('New shift started. Money halved.')}
+function loseLife(){lives--;if(lives<=0){lives=0;money=Math.floor(money/2);served=0;failed=true;toast('Out of lives! Half your money lost. Restart the day.')}saveProgress();updateHud()}
+$('interact').onclick=interact;$('next').onclick=interact;$('reset').onclick=restartDay;
+$('start').onclick=()=>{$('overlay').style.display='none';started=true;updateHud();toast('Shift started!')};
+$('vr').onclick=async()=>{try{if(!navigator.xr){toast('WebXR is not available in this browser.');return}const ok=await navigator.xr.isSessionSupported('immersive-vr');if(!ok){toast('Open this website in the Quest browser to enter VR.');return}const b=VRButton.createButton(renderer);b.click()}catch(e){toast('Enter VR from the Quest browser.')}};
+document.body.appendChild(VRButton.createButton(renderer));
+/* Keep only the custom Enter VR button visible; native button gets triggered through it. */
+const nativeVr=document.body.querySelector('button');if(nativeVr&&nativeVr!==$('vr')){nativeVr.style.display='none';}
+let xrSession=null;renderer.xr.addEventListener('sessionstart',()=>{xrSession=renderer.xr.getSession();toast('VR ready! Left stick moves, right stick turns.');$('hint').textContent='Left stick: move · Right stick: turn · Point and press trigger near prep counter/oven to interact.'});renderer.xr.addEventListener('sessionend',()=>{xrSession=null});
+function rayInteract(controller){tempMatrix.identity().extractRotation(controller.matrixWorld);raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);raycaster.ray.direction.set(0,0,-1).applyMatrix4(tempMatrix);const hits=raycaster.intersectObjects(interactives,true);if(hits.length&&hits[0].distance<4){interact()}else{const p=rig.position;const nearPrep=Math.hypot(p.x+1.6,p.z+5.2)<2.5;const nearOven=Math.hypot(p.x+5,p.z+8)<2.5;const nearServe=Math.hypot(p.x,p.z+1.8)<2.8;if(nearPrep||nearOven||nearServe)interact();else toast('Move closer to the prep counter, oven, or serving counter.')}}
+controller0.addEventListener('selectstart',()=>rayInteract(controller0));controller1.addEventListener('selectstart',()=>rayInteract(controller1));
+/* Quest gamepad thumbstick input: left = move, right = smooth turn; head-relative locomotion */
+let turnCooldown=0;
+function getAxes(session,hand){if(!session)return null;for(const s of session.inputSources){if(s.handedness===hand&&s.gamepad){const a=s.gamepad.axes;return a.length>=4?{x:a[a.length-2],y:a[a.length-1]}:null}}return null}
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key.toLowerCase()==='e')interact()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function movement(dt){let mx=0,mz=0;const s=renderer.xr.isPresenting?renderer.xr.getSession():null;const left=getAxes(s,'left'),right=getAxes(s,'right');
+ if(left){mx=left.x;mz=left.y}else{mx=(keys.d?1:0)-(keys.a?1:0);mz=(keys.s?1:0)-(keys.w?1:0)}
+ if(right){if(Math.abs(right.x)>.65)rig.rotation.y-=right.x*dt*1.8; if(Math.abs(right.y)>.8){/* optional vertical look is naturally done by headset */}}
+ else{if(keys.q)rig.rotation.y+=dt*1.5;if(keys.r)rig.rotation.y-=dt*1.5}
+ const dead=.16;if(Math.abs(mx)<dead)mx=0;if(Math.abs(mz)<dead)mz=0;
+ const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);forward.y=0;forward.normalize();const rightVec=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);rightVec.y=0;rightVec.normalize();
+ const speed=3.0;rig.position.addScaledVector(forward,-mz*speed*dt);rig.position.addScaledVector(rightVec,mx*speed*dt);
+ rig.position.x=THREE.MathUtils.clamp(rig.position.x,-7.8,7.8);rig.position.z=THREE.MathUtils.clamp(rig.position.z,-10.5,8.5);
+}
+let prev=performance.now();renderer.setAnimationLoop(()=>{const now=performance.now(),dt=Math.min((now-prev)/1000,.05);prev=now;movement(dt);ovenGlow.intensity=4.5+Math.sin(now*.004)*1.2;renderer.render(scene,camera)});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+updateHud();
+</script>
+</body></html>
